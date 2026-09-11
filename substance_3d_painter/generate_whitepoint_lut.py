@@ -112,7 +112,8 @@ def cct_uv(temperature: np.ndarray | float) -> np.ndarray:
 def tangent_normal(temperature: float) -> tuple[np.ndarray, np.ndarray]:
     _, tangent = planck_uv_tangent(float(temperature))
     tangent /= np.linalg.norm(tangent)
-    # Preserve the existing R/G orientation.
+    # Preserve the G orientation; the UI-facing R reversal is applied when
+    # the normalized LUT coordinate is encoded below.
     return tangent, np.array([-tangent[1], tangent[0]])
 
 
@@ -162,7 +163,9 @@ def build_lut(size: int = 257) -> tuple[np.ndarray, dict[str, Any]]:
         rows.append((curve, cumulative, reference_distance))
     if not np.isfinite(half_arc) or half_arc <= 0.0:
         raise RuntimeError("Could not establish a positive common symmetric arc span.")
-    coordinates = np.linspace(0.0, 1.0, size)
+    # Higher red values should read as warmer in the UI. The spectral arc is
+    # ordered from warm/lower-T to cool/higher-T, so encode it right-to-left.
+    coordinates = 1.0 - np.linspace(0.0, 1.0, size)
     lut = np.empty((size, size, 3), dtype=np.float64)
     for row, (_, cumulative, reference_distance) in enumerate(rows):
         target = reference_distance + half_arc * (2.0 * coordinates - 1.0)
@@ -237,7 +240,8 @@ class Decoder:
         curve = self.locus + absolute_duv * self.normal
         cumulative = np.concatenate(([0.0], np.cumsum(np.linalg.norm(np.diff(curve, axis=0), axis=1))))
         reference_distance = float(np.interp(self.reference_temperature, self.temperatures, cumulative))
-        target = reference_distance + self.symmetric_arc * (2.0 * np.asarray(coordinate) - 1.0)
+        # Match build_lut's UI-facing red-axis reversal.
+        target = reference_distance + self.symmetric_arc * (2.0 * (1.0 - np.asarray(coordinate)) - 1.0)
         temperature = np.interp(target, cumulative, self.temperatures)
         locus, tangent = planck_uv_tangent(temperature, self.cmfs)
         tangent /= np.linalg.norm(tangent, axis=-1, keepdims=True)
@@ -287,7 +291,8 @@ def write_manifest(path: Path, lut_path: Path, lut: np.ndarray, metadata: dict[s
         "sample_type": "FLOAT (32-bit)",
         "payload": {"R": "u - AP1_white_u, CIE 1960 UCS", "G": "v - AP1_white_v, CIE 1960 UCS", "B": "reserved zero"},
         "color_interpretation": "raw data; no gamma, gamut conversion, or color management",
-        "orientation": "R increases from lower-temperature/warmer to higher-temperature/cooler; G follows increasing signed Duv",
+        "orientation": "R increases from higher-temperature/cooler to lower-temperature/warmer for UI intuition; G increases toward green and decreases toward magenta",
+        "orientation_reason": "A higher red paint value conventionally reads as warmer, while the green axis keeps its established green-positive/magenta-negative direction.",
         "coordinate_mapping": "spectral Planck integration, fixed-Duv CIE 1960 uv arc length, common symmetric span",
         "adaptation": "CAT16 from AP1/D60 white to the LUT target white, applied once after reflection plus emission",
         "reference_white_xy": AP1_WHITE_XY.tolist(), "reference_white_uv": AP1_WHITE_UV.tolist(),

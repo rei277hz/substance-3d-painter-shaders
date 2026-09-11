@@ -56,10 +56,13 @@ opaque black. No final 0..1 clamp, tone map, or display transform is baked in.
 
 The spectral generator integrates the bundled CIE 1931 2-degree observer from
 360 to 830 nm at 1 nm with trapezoidal endpoint weights. It solves the AP1
-anchor with SciPy `brentq`, keeps the existing R orientation (lower-temperature
-side at R=0), uses AP1-relative Duv +/-0.02, and gives every fixed-Duv row a
-common symmetric CIE 1960 arc-length span. The exact center payload is zero,
-so `(0.5,0.5)` is an identity adaptation.
+anchor with SciPy `brentq`, and uses AP1-relative Duv +/-0.02 with a common
+symmetric CIE 1960 arc-length span for every fixed-Duv row. The R axis is
+intentionally reversed at LUT encoding time: higher red values move toward
+lower-temperature/warmer whites, because that is the more intuitive UI
+association for a channel called Red. G is unchanged: higher values move
+toward green and lower values toward magenta. The exact center payload is
+zero, so `(0.5,0.5)` is an identity adaptation.
 
 Run the OpenGL arithmetic/resource validation with:
 

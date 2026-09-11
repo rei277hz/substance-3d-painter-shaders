@@ -49,8 +49,11 @@ The maintained LUT is a 257x257 RGB32F raw/data texture:
 - G: `v - AP1_v`
 - B: reserved zero
 
-The LUT uses the current implementation's CCT/Duv coordinate orientation and
-relative Duv range of `AP1_Duv +/- 0.02`. Each fixed-Duv row is parameterized by
+The LUT uses the relative Duv range of `AP1_Duv +/- 0.02`. For UI intuition,
+increasing User3.R moves toward lower-temperature/warmer whites and decreasing
+User3.R moves toward higher-temperature/cooler whites: a larger value in the
+red channel reads as more warmth. User3.G is unchanged; increasing it moves
+toward green and decreasing it toward magenta. Each fixed-Duv row is parameterized by
 CIE 1960 `uv` arc length with a common symmetric span around the exact AP1
 white. Consequently, row endpoints can have different effective CCT values;
 strict row arc-speed is preferred over forcing every row to reach the nominal

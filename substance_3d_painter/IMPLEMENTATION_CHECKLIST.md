@@ -12,7 +12,8 @@
 - [x] Verify the published source checksum before spectral integration.
 - [x] Generate the 257x257 RGB32F delta-UV LUT with B reserved as zero.
 - [x] Confirm finite samples, positive reconstructed target XYZ, exact zero center,
-      current R/G orientation, and strict fixed-row arc-length spacing.
+      reversed warm-positive R / unchanged green-positive G orientation, and
+      strict fixed-row arc-length spacing.
 - [x] Record generation metadata and checksums in a maintained manifest.
 
 ## Shader

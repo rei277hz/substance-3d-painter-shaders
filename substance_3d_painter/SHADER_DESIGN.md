@@ -93,9 +93,10 @@ Painter 中落地时，我会特别注意这几项：
 * 渲染模型是 unlit；Painter 负责最终的 OCIO/view 输出变换。
 * User3 `(0.5,0.5)` 是精确 AP1/D60 中性点，shader 直接绕过 CAT16 算术。
 * CAT16 从 AP1/D60 适应到 LUT 白点，并作用于反射与发光相加后的总和。
-* User3.R 沿固定 signed-Duv 的 CIE 1960 uv 曲线按严格弧长编码；User3.G
-  使用相对于 AP1 anchor 的 Duv，范围为 `reference_Duv +/- 0.02`。
-  保留现有方向：R=0 是低温/偏暖侧，R=1 是高温/偏冷侧。
+* User3.R 沿固定 signed-Duv 的 CIE 1960 uv 曲线按严格弧长编码；为符合 UI
+  中“红色值越高越暖”的直觉，编码时反转 R 轴：R=0 是高温/偏冷侧，R=1
+  是低温/偏暖侧。User3.G 使用相对于 AP1 anchor 的 Duv，范围为
+  `reference_Duv +/- 0.02`，方向保持不变：G 越高越偏绿，越低越偏品红。
 * LUT 是 257x257 RGB32F 原始数据：R=`u-AP1_u`，G=`v-AP1_v`，B=0。
   生成器使用 CIE 1931 2-degree 光谱 Planck 积分（360--830 nm、1 nm、梯形端点）
   和 SciPy `brentq` 求 AP1 anchor。所有固定-Duv 行共享围绕 anchor 的对称弧长范围。

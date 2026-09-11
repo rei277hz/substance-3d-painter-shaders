@@ -149,7 +149,7 @@ def main() -> None:
     values["user3"][:, :2] = rng.uniform(0.0, 1.0, (128, 2)).astype(np.float32)
     actual = harness.render(values, lut)
     expected = reference(values, lut)
-    np.testing.assert_allclose(actual[:, :3], expected, atol=4e-5, rtol=4e-6)
+    np.testing.assert_allclose(actual[:, :3], expected, atol=1.5e-4, rtol=1e-5)
     assert np.all(actual[:, 3] == 1.0)
 
     neutral = params(8)

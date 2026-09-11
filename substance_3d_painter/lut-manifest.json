@@ -10,7 +10,8 @@
     "B": "reserved zero"
   },
   "color_interpretation": "raw data; no gamma, gamut conversion, or color management",
-  "orientation": "R increases from lower-temperature/warmer to higher-temperature/cooler; G follows increasing signed Duv",
+  "orientation": "R increases from higher-temperature/cooler to lower-temperature/warmer for UI intuition; G increases toward green and decreases toward magenta",
+  "orientation_reason": "A higher red paint value conventionally reads as warmer, while the green axis keeps its established green-positive/magenta-negative direction.",
   "coordinate_mapping": "spectral Planck integration, fixed-Duv CIE 1960 uv arc length, common symmetric span",
   "adaptation": "CAT16 from AP1/D60 white to the LUT target white, applied once after reflection plus emission",
   "reference_white_xy": [
@@ -50,7 +51,7 @@
     ]
   },
   "sha256": {
-    "whitepoint_cct_duv_lut.exr": "7387786ff7cf17e714f21df1707648880a7f49a01781f0b50d440d8101fb63ef"
+    "whitepoint_cct_duv_lut.exr": "5342a85b1411dd18b8f1b0db35cab0f89c0f02daa79242e8ad3e68e873dc0d7d"
   },
   "sources": [
     "https://cie.co.at/datatable/cie-1931-colour-matching-functions-2-degree-observer",

@@ -54,8 +54,9 @@ def test_whitepoint_lut_rows_are_arc_length_uniform():
 
 def test_current_orientation_and_symmetric_rows():
     lut, _ = build_lut(65)
-    # R=0 is the lower-temperature/warmer side in the maintained orientation.
-    assert lut[32, 0, 0] > lut[32, 64, 0]
+    # Higher red values intentionally point toward lower-temperature/warmer
+    # whites, matching the intuitive UI association of red with warmth.
+    assert lut[32, 0, 0] < lut[32, 64, 0]
     center = 32
     for row in (0, center, 64):
         left = np.linalg.norm(lut[row, 0, :2])
