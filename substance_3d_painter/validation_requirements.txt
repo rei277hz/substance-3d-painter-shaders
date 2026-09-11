@@ -1,0 +1,6 @@
+# Optional dependencies for LUT generation and OpenGL validation.
+numpy>=2.0,<3
+scipy>=1.14,<2
+OpenEXR>=3.2
+moderngl==5.12.0
+colour-science==0.4.7
