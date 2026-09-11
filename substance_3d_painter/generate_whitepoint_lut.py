@@ -1,7 +1,7 @@
-"""Generate the User1 temperature/tint white-point LUT for Painter.
+"""Generate the User3 temperature/tint white-point LUT for Painter.
 
-The LUT stores Y-normalized XYZ in RGB.  User1.R is position along a
-constant-Duv CIE 1960 uv curve, parameterized by arc length.  User1.G is a
+The LUT stores Y-normalized XYZ in RGB.  User3.R is position along a
+constant-Duv CIE 1960 uv curve, parameterized by arc length.  User3.G is a
 linear signed Duv offset around the curve that passes through the AP1 white.
 Keeping this work offline makes the Painter shader small and deterministic.
 """
@@ -169,7 +169,7 @@ def write_exr(path: Path, lut: np.ndarray, metadata: dict[str, float]) -> None:
         "compression": OpenEXR.ZIP_COMPRESSION,
         "type": OpenEXR.scanlineimage,
         "comments": (
-            "User1 RG CIE 1960 uv arc-length LUT; RGB stores Y-normalized XYZ; "
+            "User3 RG CIE 1960 uv arc-length LUT; RGB stores Y-normalized XYZ; "
             f"CCT={metadata['temperature_min']:g}..{metadata['temperature_max']:g} K; "
             f"Duv offset=+/-{metadata['duv_half_range']:g}; AP1 identity at (0.5,0.5)."
         ),

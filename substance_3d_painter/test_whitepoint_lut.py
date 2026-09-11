@@ -38,9 +38,26 @@ def test_whitepoint_lut_rows_are_arc_length_uniform():
 
 def test_shader_declares_new_channel_contract():
     shader = (Path(__file__).with_name("acescg_white_balance_view.glsl")).read_text()
-    for channel in ("channel_basecolor", "channel_emissive", "channel_user0", "channel_user1", "channel_user2", "channel_user3"):
+    for channel in (
+        "channel_basecolor",
+        "channel_emissive",
+        "channel_user0",
+        "channel_user1",
+        "channel_user2",
+        "channel_user3",
+    ):
         assert channel in shader
+    assert shader.index("channel_user1") < shader.index("channel_user2")
+    assert shader.index("channel_user2") < shader.index("channel_user3")
+    assert "float user1 = textureSparse(user1_tex" in shader
+    assert "float user2 = textureSparse(user2_tex" in shader
+    assert "vec2 user3 = textureSparse(user3_tex" in shader
     assert "whitepoint_lut_tex" in shader
+    assert '"default": "whitepoint_cct_duv_lut"' in shader
+    assert '"usage": "texture"' in shader
+    assert "exp2(user1 * 20.0 - 10.0)" in shader
     assert "exp2(user2 * 20.0 - 10.0)" in shader
-    assert "exp2(user3 * 20.0 - 10.0)" in shader
+    assert "whitepoint_lut_coordinate(user3)" in shader
+    assert "const float WHITEPOINT_LUT_SIZE = 257.0;" in shader
+    assert "(clamped * (WHITEPOINT_LUT_SIZE - 1.0) + 0.5) / WHITEPOINT_LUT_SIZE" in shader
     assert "reflected + emitted" in shader

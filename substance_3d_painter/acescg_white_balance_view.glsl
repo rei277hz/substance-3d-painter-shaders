@@ -2,8 +2,8 @@
 UNLIT ACEScg: REFERENCE BASE COLOR + CCT/DUV WHITE BALANCE + EMISSION
 
 The companion whitepoint_cct_duv_lut.exr stores Y-normalized XYZ in RGB. The
-LUT is sampled with User1.RG and maps raw paint parameters to a target white
-point. User1=(0.5,0.5) is the exact ACEScg/AP1 D60 white and therefore an
+LUT is sampled with User3.RG and maps raw paint parameters to a target white
+point. User3=(0.5,0.5) is the exact ACEScg/AP1 D60 white and therefore an
 identity chromatic adaptation.
 
 CHANNELS
@@ -20,18 +20,18 @@ User0:
     Reflectance scale r. The shader applies r / base_color_refl.
 
 User1:
+    Raw scalar data in R. Reflection exposure in stops is User1.R * 20 - 10.
+    0.5 is unity.
+
+User2:
+    Raw scalar data in R. Emission exposure in stops is User2.R * 20 - 10.
+    0.5 is unity. Use black Emissive or a separate mask for exact zero;
+    -10 stops is a small nonzero value.
+
+User3:
     Raw RGB16F data; R and G are the CCT/Duv coordinates for the LUT.
     (0.5,0.5) is neutral. Store and blend these values as data, before LUT
     decoding. B is reserved and ignored.
-
-User2:
-    Raw scalar data in R. Reflection exposure in stops is User2.R * 20 - 10.
-    0.5 is unity.
-
-User3:
-    Raw scalar data in R. Emission exposure in stops is User3.R * 20 - 10.
-    0.5 is unity. Use black Emissive or a separate mask for exact zero;
-    -10 stops is a small nonzero value.
 
 The shader is intentionally unlit. It outputs the sum of adapted reflected
 and emitted scene-linear contributions and leaves the Painter display/output
@@ -58,8 +58,13 @@ uniform SamplerSparse user2_tex;
 //: param auto channel_user3
 uniform SamplerSparse user3_tex;
 
-// Bind this as a linear, non-color-managed 257x257 RGB32F/EXR texture.
-// Its normalized RGB values are Y-normalized XYZ, not ACEScg color.
+//: param custom {
+//:   "default": "whitepoint_cct_duv_lut",
+//:   "label": "Whitepoint CCT/Duv LUT",
+//:   "usage": "texture",
+//:   "group": "View Controls",
+//:   "description": "Linear, non-color-managed 257x257 RGB32F/EXR; RGB stores Y-normalized XYZ data."
+//: }
 uniform sampler2D whitepoint_lut_tex;
 
 //: param custom {
@@ -97,6 +102,7 @@ const vec3 CAT02_2 = vec3(0.0030, 0.0136, 0.9834);
 const vec3 CAT02_INV_0 = vec3(1.096123820836, -0.278869000218, 0.182745179383);
 const vec3 CAT02_INV_1 = vec3(0.454369041975, 0.473533154307, 0.072097803717);
 const vec3 CAT02_INV_2 = vec3(-0.009627608738, -0.005698031216, 1.015325639955);
+const float WHITEPOINT_LUT_SIZE = 257.0;
 
 vec3 rows(vec3 row0, vec3 row1, vec3 row2, vec3 value)
 {
@@ -117,23 +123,32 @@ vec3 adapt_ap1(vec3 color, vec3 target_xyz)
     return rows(XYZ_TO_AP1_0, XYZ_TO_AP1_1, XYZ_TO_AP1_2, adapted_xyz);
 }
 
+vec2 whitepoint_lut_coordinate(vec2 coordinate)
+{
+    // The LUT stores parameters at texel centers for coordinates 0..1.
+    // Mapping to centers prevents linear+repeat sampling at an exact edge
+    // from blending the first texel with the opposite edge of the LUT.
+    vec2 clamped = clamp(coordinate, vec2(0.0), vec2(1.0));
+    return (clamped * (WHITEPOINT_LUT_SIZE - 1.0) + 0.5) / WHITEPOINT_LUT_SIZE;
+}
+
 void shade(V2F inputs)
 {
     vec3 base_color = textureSparse(basecolor_tex, inputs.sparse_coord).rgb;
     vec3 emission_color = textureSparse(emissive_tex, inputs.sparse_coord).rgb;
     float user0 = textureSparse(user0_tex, inputs.sparse_coord).r;
-    vec2 user1 = textureSparse(user1_tex, inputs.sparse_coord).rg;
+    float user1 = textureSparse(user1_tex, inputs.sparse_coord).r;
     float user2 = textureSparse(user2_tex, inputs.sparse_coord).r;
-    float user3 = textureSparse(user3_tex, inputs.sparse_coord).r;
+    vec2 user3 = textureSparse(user3_tex, inputs.sparse_coord).rg;
 
     // Clamp only the lookup coordinate. The raw channels remain blendable data.
-    vec3 target_xyz = texture(whitepoint_lut_tex, clamp(user1, 0.0, 1.0)).rgb;
+    vec3 target_xyz = texture(whitepoint_lut_tex, whitepoint_lut_coordinate(user3)).rgb;
     vec3 adapted_base = adapt_ap1(base_color, target_xyz);
     vec3 adapted_emission = adapt_ap1(emission_color, target_xyz);
 
     float reflectance_scale = base_color_refl > 0.0 ? user0 / base_color_refl : 0.0;
-    float reflection_exposure = exp2(user2 * 20.0 - 10.0);
-    float emission_exposure = exp2(user3 * 20.0 - 10.0);
+    float reflection_exposure = exp2(user1 * 20.0 - 10.0);
+    float emission_exposure = exp2(user2 * 20.0 - 10.0);
     vec3 reflected = adapted_base * reflectance_scale * reflection_exposure;
     vec3 emitted = adapted_emission * emission_exposure;
     vec3 scene_linear_acescg = (reflected + emitted) * exp2(global_exposure_stops);

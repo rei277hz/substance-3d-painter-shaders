@@ -6,9 +6,9 @@ acescg_exposure_view.glsl 是我目前的方案，其中引用的两个工具分
 - base color：基础色
 - emission color（没写错吧）：发光颜色
 - user0：反射率
-- user1：色适应，用R和G表示temp/tint，需要做到在混色时线性过渡自然，所以是不能直接用色温的K值的，要求0.5为中性，代表相对于AP1白点的相对变化
-- user2：光照强度（-10到10档位，0.5中性）
-- user3：自发光的强度，也是0.5为中性的，-10到10档的曝光值；用加法加上去
+- user1：光照强度（-10到10档位，0.5中性）
+- user2：自发光的强度，也是0.5为中性的，-10到10档的曝光值；用加法加上去
+- user3：色适应，用R和G表示temp/tint，需要做到在混色时线性过渡自然，所以是不能直接用色温的K值的，要求0.5为中性，代表相对于AP1白点的相对变化
 
 ---
 
@@ -28,13 +28,13 @@ C=\mathrm{albedo}\odot\mathrm{diffuseShading}+\mathrm{specularShading}+\mathrm{e
 Base Color	原方案的参考归一化颜色 A	保留原定义
 Emissive	自发光颜色 E，场景线性 ACEScg	黑色表示不发光
 User0	中性灰校准的反射尺度控制 r	r=\mathrm{Refl}
-User1.RG	相对于 AP1 白点的 Temp/Tint 编辑坐标	(0.5,0.5)
-User2.R	光照曝光，e_L=20u_2-10	0.5 表示乘 1
-User3.R	自发光曝光，e_E=20u_3-10	0.5 表示乘 1
+User1.R	反射曝光，e_L=20u_1-10	0.5 表示乘 1
+User2.R	自发光曝光，e_E=20u_2-10	0.5 表示乘 1
+User3.RG	相对于 AP1 白点的 Temp/Tint 编辑坐标	(0.5,0.5)
 “Emission color”这个说法没错；Painter 的通道名称是 Emissive，shader 绑定为 channel_emissive。Adobe 发光接口⁠
 保留原来的 Refl 契约时，整体计算可以写成：
 C_{\mathrm{scene}}=2^{e_{\mathrm{global}}}\left[\frac{r}{\mathrm{Refl}}\,F(A,W)\,2^{e_L}+E\,2^{e_E}\right]
-这里 W 是 User1 解码得到的目标光色，F 是你选定的染色方式。全局曝光放在求和之后，因此同时影响反射和自发光；User2 只影响反射部分。
+这里 W 是 User3 解码得到的目标光色，F 是你选定的染色方式。全局曝光放在求和之后，因此同时影响反射和自发光；User1 只影响反射部分。
 需要先决定的是：F 表示光照乘色，还是色适应变换。
 * 若表示常规 RGB 光照：F(A,W)=A\odot L(W)，其中 L(W) 是目标白点转换得到的 ACEScg 光色。
 * 若表示你说的色适应：可以使用 CAT02 或 CAT16，根据参考白点和目标白点构造一个矩阵。
@@ -43,7 +43,7 @@ F(A,W)=P^{-1}M^{-1}\operatorname{diag}\!\left(\frac{MW}{MW_0}\right)MPA
 P 是 AP1→XYZ 矩阵，M 是所选 CAT 的 XYZ→适应响应矩阵，W_0 是 AP1 白点；两个白点都用 Y=1 归一化。固定 W 后，这是对输入颜色的线性变换。Colour 色适应实现⁠
 这里使用 W_0\rightarrow W，让参考中性灰带上目标光色。若做的是把偏色光照校正回中性，方向则相反。
 两种方式都会把参考中性灰染成目标白点，但对彩色物体的结果不同。不要应用 CAT 后，又乘一次相同意图的光色，否则会重复染色。白点采用 Y=1 也只校准中性灰，不保证所有彩色像素的亮度或 J_{\mathrm{HK}} 不变。
-你希望的渐变，关键在于：让 User1 保存适合插值的参数，而不是要求“参数→光色”的解码也是线性的。
+你希望的渐变，关键在于：让 User3 保存适合插值的参数，而不是要求“参数→光色”的解码也是线性的。
 最简单的改进是存倒色温：
 m=\frac{10^6}{T}\qquad\text{（mired）}
 线性插值 m，再转换回温度并求轨迹上的颜色，可以避免直接插值 K 值造成的明显速度不均。不过，mired 并不等于严格的轨迹弧长。
@@ -65,7 +65,7 @@ S 控制温度方向的范围。最后通过 \gamma_d(T) 得到目标白点，�
 * G 线性控制相对 D_{uv}，中间值不会经过 gamma 或色温 K 值插值。
 * 此公式中 R 增大对应更高温度；想让 R 增大表示更暖，翻转弧长的符号即可。
 这里 G=0.5 对应的是“保持 AP1 白点自身 D_{uv} 的温度曲线”。真正的黑体轨迹是 d=0，因此它不会恰好位于 G=0.5。这是精确 AP1 中性点要求带来的必然结果。
-实现时可以离线生成二维 LUT：User1.RG → 目标白点 XYZ。每个固定 G 的温度曲线分别按弧长重采样，shader 只负责查表和矩阵计算。有限分辨率 LUT 会有插值误差，但不需要逐像素做积分或迭代求解。
+实现时可以离线生成二维 LUT：User3.RG → 目标白点 XYZ。每个固定 G 的温度曲线分别按弧长重采样，shader 只负责查表和矩阵计算。有限分辨率 LUT 会有插值误差，但不需要逐像素做积分或迭代求解。
 还有一个范围上的约束：若要求 0.5 是中性，而且两侧严格同速，就需要使用同一个 S。不能再任意指定暖端、冷端温度；如果把两侧分别拉伸到不同端点，中性位置通常会出现速度变化。
 对你举的例子：
 (R,G)(t)=(0.2+0.6t,\;0.3+0.1t)
@@ -73,10 +73,10 @@ S 控制温度方向的范围。最后通过 \gamma_d(T) 得到目标白点，�
 而且这段渐变同时改变温度和 Tint，走过的是跨越多条固定 Tint 曲线的路径。上面的构造保证了各条固定 Tint 轨迹的等速，却不保证这条二维路径也等速。若要让某一对端点之间的完整路径严格等速，需要对那条路径再次按距离重采样；普通的 RG 线性混合无法为所有端点组合同时保证这一点。
 最后，“在 uv 中等距”和“经过 ACES 后看起来等距”还需要分开。若你真正关心的是后者，可以固定 ACES view、参考灰亮度、曝光和观察条件，在输出后的颜色上用选定的感知色差度量累计弧长，再生成 LUT。你现有的 J_{\mathrm{HK}} 等亮约束本身不足以定义颜色之间的完整距离；可以另选 CAM16-UCS 等度量。这样得到的是针对该观看条件和参考样本的均匀性，无法保证所有基础色和曝光下都同样均匀。
 Painter 中落地时，我会特别注意这几项：
-* User1 使用 RGB16F，并关闭 “Color channel”。 存储格式和色彩管理开关是两件事，单纯改成 RGB16F 不代表数据不会被色彩管理。Adobe 通道设置⁠
+* User3 使用 RGB16F，并关闭 “Color channel”。 存储格式和色彩管理开关是两件事，单纯改成 RGB16F 不代表数据不会被色彩管理。Adobe 通道设置⁠
 * 用正常的不透明度混合这些原始参数，先得到混合后的 RG，再在 shader 中解码；不要先转成 RGB 光色再混合。
-* User2、User3 可使用原始数据的 L16F。两者的 0.5 都表示乘 1；自发光彻底关闭应依靠黑色 Emissive 或独立遮罩，−10 EV 仍然不等于零。
-* 原方案中 User1 的曝光内容需要迁移到 User2。新增的场景侧 CAT 也不等价于你调色板原有的“显示侧 CAT02＋J_{\mathrm{HK}} 保亮”。
+* User1、User2 可使用原始数据的 L16F。两者的 0.5 都表示乘 1；自发光彻底关闭应依靠黑色 Emissive 或独立遮罩，−10 EV 仍然不等于零。
+* 原方案中 User1 的反射曝光内容保留在新 shader 的 User1；User2 保存新的自发光曝光。新增的场景侧 CAT 也不等价于你调色板原有的“显示侧 CAT02＋J_{\mathrm{HK}} 保亮”。
 此外，两束光真正按能量混合时，应在线性 RGB／XYZ 中加权相加，结果通常会离开黑体轨迹。你希望的“沿温度轨迹画渐变”属于光色参数的插值，作为绘画控制完全合理。
 
 ---
@@ -87,45 +87,47 @@ Painter 中落地时，我会特别注意这几项：
 实现文件为 `acescg_white_balance_view.glsl`，LUT 由
 `generate_whitepoint_lut.py` 生成，默认输出
 `whitepoint_cct_duv_lut.exr`。现有的 `acescg_exposure_view.glsl` 保留给旧项目；
-新 shader 不改变旧 User1 曝光通道的含义。
+旧的 `acescg_exposure_view.glsl` 保持不变；新 shader 按上述 User1/User2/User3 通道契约工作。
 
 新 shader 采用以下固定决定：
 
 * 渲染模型仍是 unlit。Painter 只负责最终的 OCIO/view 输出变换。
-* User1 的 `(0.5,0.5)` 对所有材质都表示精确 AP1/D60 白点，因此 CAT02 在此处为恒等变换。
+* User3 的 `(0.5,0.5)` 对所有材质都表示精确 AP1/D60 白点，因此 CAT02 在此处为恒等变换。
 * CAT02 从 AP1 白点适应到 LUT 白点，并同时作用于 Base Color 和 Emissive。
-* User1.R 沿 CIE 1960 uv 的固定 Duv 曲线按弧长编码，User1.G 线性编码相对于 AP1 白点曲线的
+* User3.R 沿 CIE 1960 uv 的固定 Duv 曲线按弧长编码，User3.G 线性编码相对于 AP1 白点曲线的
   signed Duv 偏移。温度范围是 2000--20000 K，Duv 偏移范围是 `+/-0.02`。
 * 每条固定 Duv 曲线使用相同的对称弧长范围，R 的线性插值在该曲线上等速。二维任意端点之间的
   路径仍不保证等速，这是二维坐标无法同时满足的约束。
 * LUT 的 RGB 不是 ACEScg 颜色，而是目标白点的 XYZ，且 Y=1。LUT 必须以线性、非颜色管理的
-  257x257 RGB32F/EXR 纹理绑定给 `whitepoint_lut_tex`。
+  257x257 RGB32F/EXR 纹理绑定给 `whitepoint_lut_tex`。257 是奇数，因此中心 texel `(128,128)`
+  的中心恰好是归一化坐标 `(0.5,0.5)`；shader 将 `[0,1]` 参数映射到 texel center，避免精确的
+  0 或 1 坐标在 repeat 寻址下与另一侧混合。
 
 通道和计算式如下：
 
     A = Base Color                         (scene-linear ACEScg/AP1)
     E = Emissive                           (scene-linear ACEScg/AP1)
     r = User0.R
-    W = LUT(User1.RG)                     (XYZ, Y=1)
-    e_L = 20 * User2.R - 10
-    e_E = 20 * User3.R - 10
+    W = LUT(User3.RG)                     (XYZ, Y=1)
+    e_L = 20 * User1.R - 10
+    e_E = 20 * User2.R - 10
 
     A' = CAT02(AP1 -> W, A)
     E' = CAT02(AP1 -> W, E)
     R = r / BaseColorReference
     C_scene = 2^GlobalExposure * (A' * R * 2^e_L + E' * 2^e_E)
 
-这里的加法只发生在反射贡献和发光贡献之间；User2 只控制反射项，User3 只控制发光项。
-`User2=0.5` 和 `User3=0.5` 都是 unity。-10 EV 仍是非零值；要得到精确关闭发光，使用黑色
+这里的加法只发生在反射贡献和发光贡献之间；User1 只控制反射项，User2 只控制发光项。
+`User1=0.5` 和 `User2=0.5` 都是 unity。-10 EV 仍是非零值；要得到精确关闭发光，使用黑色
 Emissive 或额外 mask。
 
 Painter 设置：User1、User2、User3 都必须作为 raw data 通道混合，关闭 Color channel 的颜色
-管理；Base Color 和 Emissive 则按项目 ACEScg 颜色管理导入。绘画时先对 User1.RG 做普通不透明度
+管理；Base Color 和 Emissive 则按项目 ACEScg 颜色管理导入。绘画时先对 User3.RG 做普通不透明度
 混合，再由 shader 查 LUT，不能把白点转换成 RGB 后再混合。LUT 越界坐标在 shader 中夹到
-`[0,1]`；这只是防止纹理寻址越界，不改变已混合的原始通道数据。
+`[0,1]` 并映射到 texel center；这只是防止纹理寻址越界，不改变已混合的原始通道数据。
 
 验证要求：生成脚本必须报告 LUT 尺寸、中心 XYZ、参考 CCT、参考 Duv 和对称弧长；中心 texel
 必须等于 `(0.952646077, 1, 1.008825183)`（AP1/D60 XYZ，允许 float32 舍入）。应检查 LUT
 全为有限值，并检查固定 G 行的 CIE 1960 uv 相邻弧长误差。shader 的中性用例应满足：
-`User1=(0.5,0.5)`、`User0=BaseColorReference`、`User2=User3=0.5`、全局曝光为零时，输出为
+`User3=(0.5,0.5)`、`User0=BaseColorReference`、`User1=User2=0.5`、全局曝光为零时，输出为
 `Base Color + Emissive`（允许 CAT02 矩阵和纹理精度误差）。
