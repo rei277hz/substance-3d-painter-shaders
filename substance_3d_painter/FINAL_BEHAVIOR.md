@@ -43,7 +43,8 @@ transform, tone mapping, or final 0..1 clamp is performed by this shader.
 
 ## LUT Contract
 
-The maintained LUT is a 257x257 RGB32F raw/data texture:
+The maintained LUT is a 257x257 RGB32F raw/data texture using OpenEXR ZIP16
+internal compression (`ZIP_COMPRESSION`, 16 scanlines per block):
 
 - R: `u - AP1_u`
 - G: `v - AP1_v`

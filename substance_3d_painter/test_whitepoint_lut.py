@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import OpenEXR
 
 from substance_3d_painter.generate_whitepoint_lut import (
     AP1_WHITE_UV,
@@ -24,6 +25,15 @@ def test_spectral_observer_is_bundled_and_verified():
     assert cmfs.shape == (471, 4)
     assert np.array_equal(cmfs[:, 0], np.arange(360.0, 831.0))
     assert CIE_MD5 == "17cca777db64b17170f06f67ce9d3ab7"
+
+
+def test_shipped_lut_is_257_fp32_zip16():
+    path = Path(__file__).with_name("whitepoint_cct_duv_lut.exr")
+    with OpenEXR.File(str(path)) as exr:
+        assert exr.header()["compression"] == OpenEXR.ZIP_COMPRESSION
+        pixels = exr.channels()["RGB"].pixels
+    assert pixels.shape == (257, 257, 3)
+    assert pixels.dtype == np.float32
 
 
 def test_whitepoint_lut_has_exact_neutral_delta_and_finite_positive_whites():

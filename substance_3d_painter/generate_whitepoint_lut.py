@@ -264,6 +264,8 @@ def write_exr(path: Path, lut: np.ndarray, metadata: dict[str, Any]) -> None:
         import OpenEXR
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError("OpenEXR is required to write the LUT.") from exc
+    # OpenEXR.ZIP_COMPRESSION is ZIP16: ZIP compression in 16-scanline blocks.
+    # Keep this distinct from ZIPS, which uses one scanline per block.
     header = {
         "compression": OpenEXR.ZIP_COMPRESSION, "type": OpenEXR.scanlineimage,
         "comments": "RAW DATA; User3 RG stores delta CIE 1960 uv; B is reserved zero. AP1/D60 identity at (0.5,0.5).",
@@ -289,6 +291,11 @@ def write_manifest(path: Path, lut_path: Path, lut: np.ndarray, metadata: dict[s
     manifest = {
         "version": "2.0", "lut": lut_path.name, "width": int(lut.shape[1]), "height": int(lut.shape[0]),
         "sample_type": "FLOAT (32-bit)",
+        "compression": {
+            "name": "ZIP16",
+            "openexr_constant": "ZIP_COMPRESSION",
+            "scanlines_per_block": 16,
+        },
         "payload": {"R": "u - AP1_white_u, CIE 1960 UCS", "G": "v - AP1_white_v, CIE 1960 UCS", "B": "reserved zero"},
         "color_interpretation": "raw data; no gamma, gamut conversion, or color management",
         "orientation": "R increases from higher-temperature/cooler to lower-temperature/warmer for UI intuition; G increases toward green and decreases toward magenta",

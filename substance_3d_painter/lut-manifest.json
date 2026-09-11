@@ -4,6 +4,11 @@
   "width": 257,
   "height": 257,
   "sample_type": "FLOAT (32-bit)",
+  "compression": {
+    "name": "ZIP16",
+    "openexr_constant": "ZIP_COMPRESSION",
+    "scanlines_per_block": 16
+  },
   "payload": {
     "R": "u - AP1_white_u, CIE 1960 UCS",
     "G": "v - AP1_white_v, CIE 1960 UCS",

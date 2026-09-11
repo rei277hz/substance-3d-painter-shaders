@@ -12,7 +12,8 @@ python3 substance_3d_painter/generate_whitepoint_lut.py
 ```
 
 The command writes `whitepoint_cct_duv_lut.exr` and `lut-manifest.json`. The
-LUT is a 257x257 RGB32F raw-data texture. R/G store `u - AP1_u` and
+LUT is a 257x257 RGB32F raw-data texture, stored with OpenEXR ZIP16 internal
+compression (`OpenEXR.ZIP_COMPRESSION`, 16 scanlines per block). R/G store `u - AP1_u` and
 `v - AP1_v` in CIE 1960 UCS; B is reserved zero. Import it without gamma,
 gamut conversion, or color management and assign it to the shader parameter
 whose default resource name is `whitepoint_cct_duv_lut`.
