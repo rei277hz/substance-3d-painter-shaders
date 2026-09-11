@@ -1,0 +1,62 @@
+{
+  "version": "2.0",
+  "lut": "whitepoint_cct_duv_lut.exr",
+  "width": 257,
+  "height": 257,
+  "sample_type": "FLOAT (32-bit)",
+  "payload": {
+    "R": "u - AP1_white_u, CIE 1960 UCS",
+    "G": "v - AP1_white_v, CIE 1960 UCS",
+    "B": "reserved zero"
+  },
+  "color_interpretation": "raw data; no gamma, gamut conversion, or color management",
+  "orientation": "R increases from lower-temperature/warmer to higher-temperature/cooler; G follows increasing signed Duv",
+  "coordinate_mapping": "spectral Planck integration, fixed-Duv CIE 1960 uv arc length, common symmetric span",
+  "adaptation": "CAT16 from AP1/D60 white to the LUT target white, applied once after reflection plus emission",
+  "reference_white_xy": [
+    0.32168,
+    0.33767
+  ],
+  "reference_white_uv": [
+    0.2007776952508161,
+    0.31613686437768773
+  ],
+  "reference_white_XYZ_Y1": [
+    0.9526460745698463,
+    1.0,
+    1.0088251843515854
+  ],
+  "center_payload": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "metadata": {
+    "size": 257,
+    "temperature_min": 2000.0,
+    "temperature_max": 20000.0,
+    "reference_temperature": 6000.078982494321,
+    "reference_duv": -0.00323696884142978,
+    "duv_half_range": 0.02,
+    "symmetric_arc": 0.036040794027958026,
+    "reference_u": 0.2007776952508161,
+    "reference_v": 0.31613686437768773,
+    "observer_md5": "17cca777db64b17170f06f67ce9d3ab7",
+    "planck_c2_mK": 0.014388,
+    "minimum_target_XYZ": [
+      0.8360701601176322,
+      1.0,
+      0.3641247999118407
+    ]
+  },
+  "sha256": {
+    "whitepoint_cct_duv_lut.exr": "7387786ff7cf17e714f21df1707648880a7f49a01781f0b50d440d8101fb63ef"
+  },
+  "sources": [
+    "https://cie.co.at/datatable/cie-1931-colour-matching-functions-2-degree-observer",
+    "https://www.nist.gov/publications/practical-use-and-calculation-cct-and-duv",
+    "https://docs.acescentral.com/encodings/acescg/",
+    "https://docs.acescentral.com/white-point/",
+    "https://adobedocs.github.io/painter-shader-api/api/parameters/all-custom-params/"
+  ]
+}

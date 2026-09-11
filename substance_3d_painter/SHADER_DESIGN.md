@@ -65,7 +65,7 @@ S 控制温度方向的范围。最后通过 \gamma_d(T) 得到目标白点，�
 * G 线性控制相对 D_{uv}，中间值不会经过 gamma 或色温 K 值插值。
 * 此公式中 R 增大对应更高温度；想让 R 增大表示更暖，翻转弧长的符号即可。
 这里 G=0.5 对应的是“保持 AP1 白点自身 D_{uv} 的温度曲线”。真正的黑体轨迹是 d=0，因此它不会恰好位于 G=0.5。这是精确 AP1 中性点要求带来的必然结果。
-实现时可以离线生成二维 LUT：User3.RG → 目标白点 XYZ。每个固定 G 的温度曲线分别按弧长重采样，shader 只负责查表和矩阵计算。有限分辨率 LUT 会有插值误差，但不需要逐像素做积分或迭代求解。
+实现时可以离线生成二维 LUT：User3.RG → 相对于 AP1 白点的 CIE 1960 `delta uv`。每个固定 G 的温度曲线分别按弧长重采样，shader 只负责查表、恢复 Y=1 的 XYZ 并执行 CAT16。有限分辨率 LUT 会有插值误差，但不需要逐像素做积分或迭代求解。
 还有一个范围上的约束：若要求 0.5 是中性，而且两侧严格同速，就需要使用同一个 S。不能再任意指定暖端、冷端温度；如果把两侧分别拉伸到不同端点，中性位置通常会出现速度变化。
 对你举的例子：
 (R,G)(t)=(0.2+0.6t,\;0.3+0.1t)
@@ -85,49 +85,43 @@ Painter 中落地时，我会特别注意这几项：
 --------
 
 实现文件为 `acescg_white_balance_view.glsl`，LUT 由
-`generate_whitepoint_lut.py` 生成，默认输出
-`whitepoint_cct_duv_lut.exr`。现有的 `acescg_exposure_view.glsl` 保留给旧项目；
-旧的 `acescg_exposure_view.glsl` 保持不变；新 shader 按上述 User1/User2/User3 通道契约工作。
+`generate_whitepoint_lut.py` 生成，默认输出 `whitepoint_cct_duv_lut.exr` 和
+`lut-manifest.json`。旧的 `acescg_exposure_view.glsl` 保持不变。
 
-新 shader 采用以下固定决定：
+固定实现决定如下：
 
-* 渲染模型仍是 unlit。Painter 只负责最终的 OCIO/view 输出变换。
-* User3 的 `(0.5,0.5)` 对所有材质都表示精确 AP1/D60 白点，因此 CAT02 在此处为恒等变换。
-* CAT02 从 AP1 白点适应到 LUT 白点，并同时作用于 Base Color 和 Emissive。
-* User3.R 沿 CIE 1960 uv 的固定 Duv 曲线按弧长编码，User3.G 线性编码相对于 AP1 白点曲线的
-  signed Duv 偏移。温度范围是 2000--20000 K，Duv 偏移范围是 `+/-0.02`。
-* 每条固定 Duv 曲线使用相同的对称弧长范围，R 的线性插值在该曲线上等速。二维任意端点之间的
-  路径仍不保证等速，这是二维坐标无法同时满足的约束。
-* LUT 的 RGB 不是 ACEScg 颜色，而是目标白点的 XYZ，且 Y=1。LUT 必须以线性、非颜色管理的
-  257x257 RGB32F/EXR 纹理绑定给 `whitepoint_lut_tex`。257 是奇数，因此中心 texel `(128,128)`
-  的中心恰好是归一化坐标 `(0.5,0.5)`；shader 将 `[0,1]` 参数映射到 texel center，避免精确的
-  0 或 1 坐标在 repeat 寻址下与另一侧混合。
+* 渲染模型是 unlit；Painter 负责最终的 OCIO/view 输出变换。
+* User3 `(0.5,0.5)` 是精确 AP1/D60 中性点，shader 直接绕过 CAT16 算术。
+* CAT16 从 AP1/D60 适应到 LUT 白点，并作用于反射与发光相加后的总和。
+* User3.R 沿固定 signed-Duv 的 CIE 1960 uv 曲线按严格弧长编码；User3.G
+  使用相对于 AP1 anchor 的 Duv，范围为 `reference_Duv +/- 0.02`。
+  保留现有方向：R=0 是低温/偏暖侧，R=1 是高温/偏冷侧。
+* LUT 是 257x257 RGB32F 原始数据：R=`u-AP1_u`，G=`v-AP1_v`，B=0。
+  生成器使用 CIE 1931 2-degree 光谱 Planck 积分（360--830 nm、1 nm、梯形端点）
+  和 SciPy `brentq` 求 AP1 anchor。所有固定-Duv 行共享围绕 anchor 的对称弧长范围。
+* shader 用 `textureSize` 拒绝非 257x257 资源，用 level-0 `texelFetch` 手动双线性插值，
+  并把坐标夹到 `[0,1]`，因此 0/1 不会跨到纹理另一侧。LUT 必须是 raw/linear、无 mipmap
+  和色彩管理；坐标和 LUT payload 都在 shader 中作为数据处理。
 
-通道和计算式如下：
+通道和缺省值如下：
 
-    A = Base Color                         (scene-linear ACEScg/AP1)
-    E = Emissive                           (scene-linear ACEScg/AP1)
-    r = User0.R
-    W = LUT(User3.RG)                     (XYZ, Y=1)
-    e_L = 20 * User1.R - 10
-    e_E = 20 * User2.R - 10
+    Base Color  = scene-linear ACEScg/AP1；缺省 (Refl, Refl, Refl)
+    Emissive    = scene-linear ACEScg/AP1；缺省 (0, 0, 0)
+    User0.R     = 反射率尺度 r；缺省 0.5（与 Refl 无关）
+    User1.R     = 反射曝光编码；缺省 0.5，EV=20*clamp(R,0,1)-10
+    User2.R     = 发光曝光编码；缺省 0.5，EV=20*clamp(R,0,1)-10
+    User3.RG    = LUT 坐标；缺省 (0.5,0.5)
+    User3.B     = 存在通道的完整性标记；存在时必须严格等于 0.5
 
-    A' = CAT02(AP1 -> W, A)
-    E' = CAT02(AP1 -> W, E)
-    R = r / BaseColorReference
-    C_scene = 2^GlobalExposure * (A' * R * 2^e_L + E' * 2^e_E)
+存在的 User3 若含非有限 RGB 或 B 不等于 0.5，则输出不透明黑；不存在的 User3
+表示中性。`User0<0` 夹到零，`Refl<=0` 只关闭反射项，Global EV 夹到 +/-10，
+最终有限的有符号 RGB 不夹到 0..1。任何非有限输入、中间值或结果均输出不透明黑。
 
-这里的加法只发生在反射贡献和发光贡献之间；User1 只控制反射项，User2 只控制发光项。
-`User1=0.5` 和 `User2=0.5` 都是 unity。-10 EV 仍是非零值；要得到精确关闭发光，使用黑色
-Emissive 或额外 mask。
+    reflected = BaseColor * (max(User0,0) / Refl) * 2^(20*clamp(User1,0,1)-10)
+    emitted   = Emissive * 2^(20*clamp(User2,0,1)-10)
+    scene     = CAT16(reflected + emitted) * 2^clamp(Global,-10,10)
 
-Painter 设置：User1、User2、User3 都必须作为 raw data 通道混合，关闭 Color channel 的颜色
-管理；Base Color 和 Emissive 则按项目 ACEScg 颜色管理导入。绘画时先对 User3.RG 做普通不透明度
-混合，再由 shader 查 LUT，不能把白点转换成 RGB 后再混合。LUT 越界坐标在 shader 中夹到
-`[0,1]` 并映射到 texel center；这只是防止纹理寻址越界，不改变已混合的原始通道数据。
-
-验证要求：生成脚本必须报告 LUT 尺寸、中心 XYZ、参考 CCT、参考 Duv 和对称弧长；中心 texel
-必须等于 `(0.952646077, 1, 1.008825183)`（AP1/D60 XYZ，允许 float32 舍入）。应检查 LUT
-全为有限值，并检查固定 G 行的 CIE 1960 uv 相邻弧长误差。shader 的中性用例应满足：
-`User3=(0.5,0.5)`、`User0=BaseColorReference`、`User1=User2=0.5`、全局曝光为零时，输出为
-`Base Color + Emissive`（允许 CAT02 矩阵和纹理精度误差）。
+Painter 中 User0--User3 应关闭 Color channel 并作为 raw data 混合；先混合 User3.RG，
+再查 LUT，不能先把白点解码成 RGB 再混合。`validate_shader.py` 会在 Mesa standalone EGL
+中编译、链接并渲染实际 shader，通过最小 Painter API adapter 检查上述契约；它不代表
+Substance 3D Painter 应用集成测试。

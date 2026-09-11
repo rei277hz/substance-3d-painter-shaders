@@ -1,0 +1,7 @@
+{
+  "scope": "OpenGL compile/link/render with a minimal Painter API adapter; Painter application integration not run.",
+  "renderer": "llvmpipe (LLVM 19.1.7, 256 bits)",
+  "GL_version": "4.5 (Core Profile) Mesa 25.0.7-2+deb13u1",
+  "checks": 12,
+  "passed": true
+}
